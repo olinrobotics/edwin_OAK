@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 
 """
-This code converts ROBOFORTH commands into function calls for the arm_node.py code to intialize as an object.
-Commands are communicated to the robot over USB
+This code converts ROBOFORTH commands into function calls for the arm_node.py code to intialize as an object. Commands are communicated to the robot over USB
+
+Robofourth manual
+http://www.strobotics.com/manuals/manual15.htm
+
+Speed may be changed during the progress of a route with \LEARN e.g. \LEARN SPEED 7500 (or other value or other variable)
+
+Associated commands are:
+(line number) \REPLACE SPEED (new value)
+(line number) \INSERT SPEED (new value)
 """
+
 import rospy
 import math
 import st
@@ -14,22 +23,11 @@ import serial as s
 import re
 import shlex
 
-# Use this one for Mac/Linux
+# For connections to Mac devices:
 # DEFAULT_DEV = '/dev/tty.KeySerial1'
-
-#Robofourth manual
-#http://www.strobotics.com/manuals/manual15.htm
-#
-# """
-# Speed may be changed during the progress of a route with \'LEARN e.g. \'LEARN SPEED 7500 (or other value or other variable)
-# Associated commands are:
-# (line number) \'REPLACE SPEED (new value)
-# (line number) \'INSERT SPEED (new value)
-# """
 
 # Use this one for PC
 DEFAULT_DEV = '/dev/ttyUSB0'
-#DEFAULT_DEV = '/dev/tty.KeySerial1'
 DEFAULT_BAUD_RATE = 19200
 DEFAULT_TIMEOUT = 0.05
 
@@ -77,7 +75,6 @@ INSERT = 'INSERT'
 
 OK = 'OK'
 
-
 class StPosCart():
 
     def __init__(self, pos=[0, 0, 0, 0, 0]):
@@ -121,10 +118,10 @@ class StArm():
         for port in possiblePorts:
             try:
                 self.cxn = s.Serial(port, baudrate=baud, timeout=to)
-                print "Connected to port: ", port
+                rospy.loginfo("Connected to port: %s", port)
                 return
             except:
-                print "Couldn't connect to port: ", port
+                rospy.loginfo("Couldn't connect to port: %s", port)
                 pass
 
 
@@ -286,9 +283,9 @@ class StArm():
 
     def block_on_result(self, cmd, debug=False):
         t = time.time()
-        print "in block_on_result"
+        rospy.loginfo("In block_on_result")
         s = self.cxn.read(self.cxn.inWaiting())
-        print s
+        rospy.loginfo(s)
         while s[-5:-3] != OK:
             # print "got: ", s
             # time.sleep(1)
@@ -310,11 +307,12 @@ class StArm():
                 #     print "CATCHING TOO TIGHT ERROR"
                 #     return s
                 # else:
-                raise Exception('Arm command failed to execute as expected.', s)
+                rospy.logerr('Arm command failed to execute as expected: %s', s)
+                raise Exception('Arm command failed to execute as expected', s)
             s += self.cxn.read(self.cxn.inWaiting())
 
         if self.debug:
-            print('Command ' + cmd + ' completed successfully.')
+            rospy.loginfo('Command %s completed successfully', cmd)
         return s
 
     def get_status(self):
@@ -323,15 +321,15 @@ class StArm():
 
     def get_speed(self):
         cmd = SPEED + QUERY
-        print('Getting current speed setting...')
+        rospy.loginfo('Getting current speed setting...')
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         result = self.block_on_result(cmd)
-        print(result)
+        rospy.loginfo(result)
         return int(result.split(' ')[-2])
 
     def set_speed(self, speed):
-        print('Setting speed to %d' % speed)
+        rospy.loginfo('Setting speed to %d', speed)
         cmd = str(speed) + ' ' + SPEED + IMPERATIVE
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
@@ -339,14 +337,14 @@ class StArm():
 
     def set_point(self, name):
         cmd = "POINT " + name
-        print('Getting current point')
+        rospy.loginfo('Getting current point')
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
 
     def get_accel(self):
         cmd = ACCEL + QUERY
-        print('Getting current acceleration setting...')
+        rospy.loginfo('Getting current acceleration setting...')
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         result = self.block_on_result(cmd)
@@ -354,68 +352,19 @@ class StArm():
 
     def set_accel(self, accel):
         cmd = str(accel) + ' ' + ACCEL + IMPERATIVE
-        print('Setting acceleration to %d' % accel)
+        rospy.loginfo('Setting acceleration to %d', accel)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
 
     def run_route(self, route):
         cmd = SMOOTH + ' ' + route + ' ' + RUN
-        # self.set_accel(6000)
-        # cmd = route + ' ' + RUN
-        print('Running route %s' % route)
+        rospy.loginfo('Running route %s', route)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         res = self.block_on_result(cmd)
-        # if "Too tight in res":
-            # raise Exception('Arm command failed to execute as expected.', res)
-
         time.sleep(1)
         self.where()
-
-    # def run_route(self, route):
-    #     too_fast = True
-    #     tries = 1
-    #     # orig_accel = self.get_accel()
-    #     # orig_speed = self.get_speed()
-    #
-    #     while too_fast:
-    #         print('Doing dry run of route %s' % route)
-    #         cmd = DRY + ' ' + route + ' ' + RUN
-    #         self.cxn.flushInput()
-    #         self.cxn.write(cmd + CR)
-    #         res = self.block_on_result(cmd)
-    #
-    #         if "Too tight" in res:
-    #             print "CATCHING TOO TIGHT ERROR"
-    #             # if tries < 2:
-    #             #     #TODO: Fix the acceleration scaling
-    #             #     self.set_accel(orig_accel+1500*(tries))
-    #             #     tries += 1
-    #             # elif tries < 5:
-    #             #     self.set_speed(orig_speed-1000*(tries-1))
-    #             #     tries += 1
-    #             # else:
-    #             #     too_fast = False
-    #             #     self.set_accel(orig_accel)
-    #             #     self.set_speed(orig_speed)
-    #             raise Exception('Arm command failed to execute as expected.', res)
-    #
-    #             time.sleep(1)
-    #         else:
-    #             too_fast = False
-    #
-    #     # route is string name of learned path
-    #     cmd = SMOOTH + ' ' + route + ' ' + RUN
-    #     # self.set_accel(6000)
-    #     # cmd = route + ' ' + RUN
-    #     print('Running route %s' % route)
-    #     self.cxn.flushInput()
-    #     self.cxn.write(cmd + CR)
-    #     self.block_on_result(cmd)
-    #     # self.set_accel(orig_accel)
-    #     # self.set_speed(orig_speed)
-    #     self.where()
 
     def move_to(self, x, y, z, debug=False, block=True):
         if debug:
@@ -431,14 +380,14 @@ class StArm():
 
     def rotate_wrist(self, roll):
         cmd = TELL + ' ' + WRIST + ' ' + str(roll) + ' ' + MOVETO
-        print('Rotating wrist to %s' % roll)
+        rospy.loginfo('Rotating wrist to %s', roll)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
 
     def rotate_wrist_rel(self, roll_inc):
         cmd = TELL + ' ' + WRIST + ' ' + str(roll_inc) + ' ' + MOVE
-        print('Rotating wrist by %s.' % roll_inc)
+        rospy.loginfo('Rotating wrist by %s', roll_inc)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -447,7 +396,7 @@ class StArm():
 
     def rotate_hand(self, pitch):
         cmd = TELL + ' ' + HAND + ' ' + str(pitch) + ' ' + MOVETO
-        print('Rotating hand to %s.' % pitch)
+        rospy.loginfo('Rotating hand to %s', pitch)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -455,7 +404,7 @@ class StArm():
 
     def rotate_elbow(self, pitch):
         cmd = TELL + ' ' + ELBOW + ' ' + str(pitch) + ' ' + MOVETO
-        print('Rotating hand to %s.' % pitch)
+        rospy.loginfo('Rotating hand to %s', pitch)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -463,7 +412,7 @@ class StArm():
 
     def rotate_shoulder(self, pitch):
         cmd = TELL + ' ' + SHOULDER + ' ' + str(pitch) + ' ' + MOVETO
-        print('Rotating hand to %s.' % pitch)
+        rospy.loginfo('Rotating hand to %s', pitch)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -471,7 +420,7 @@ class StArm():
 
     def rotate_waist(self, pitch):
         cmd = TELL + ' ' + WAIST + ' ' + str(pitch) + ' ' + MOVETO
-        print('Rotating hand to %s.' % pitch)
+        rospy.loginfo('Rotating hand to %s', pitch)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -479,7 +428,7 @@ class StArm():
 
     def rotate_waist_rel(self, pitch):
         cmd = TELL + ' ' + WAIST + ' ' + str(pitch) + ' ' + MOVE
-        print('Rotating hand to %s.' % pitch)
+        rospy.loginfo('Rotating hand to %s', pitch)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -489,7 +438,7 @@ class StArm():
 
     def rotate_hand_rel(self, pitch_inc):
         cmd = TELL + ' ' + HAND + ' ' + str(pitch_inc) + ' ' + MOVE
-        print('Rotating hand by %s' % pitch_inc)
+        rospy.loginfo('Rotating hand by %s', pitch_inc)
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
@@ -501,14 +450,14 @@ class StArm():
 
     def energize(self):
         cmd = ENERGIZE
-        print('Powering motors...')
+        rospy.loginfo('Powering motors...')
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
 
     def de_energize(self):
         cmd = DE_ENERGIZE
-        print('Powering down motors...')
+        rospy.loginfo('Powering down motors...')
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)
 
@@ -518,8 +467,8 @@ class StArm():
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         res = self.block_on_result(cmd)
-        print "I'M LOCATED"
-        print res
+        rospy.loginfo("I'M LOCATED")
+        rospy.loginfo(res)
         self.pub.publish(str(res))
         try:
             lines = res.split('\r\n')
@@ -534,28 +483,26 @@ class StArm():
             self.prev_pos.set(pp)
         except RuntimeError, e:
             self.pub.publish("EXCEPT IN WHERE: " + str(e))
-            print('Exception in where.')
-            print(e)
+            rospy.logerr('Exception in where.')
+            rospy.logerr(e)
             self.curr_pos.set([0, 0, 0, 0, 0])
             self.prev_pos.set([0, 0, 0, 0, 0])
 
         return (self.curr_pos, self.prev_pos)
 
     def check_if_done(self):
-        cmd = TELL + 'FOOBAR'        # Not a real command. If it responds with an error, other processes are done.
+        # Not a real command. If it responds with an error, other processes are done.
+        cmd = TELL + 'FOOBAR'
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         return self.block_on_result(cmd)
-
-    def dummy(self):
-        return "no you're a dummy!"
 
     def lock_wrist_angle(self,TF = True):
         if TF:
             cmd = ALIGN
         else:
             cmd = NONALIGN
-        print 'Locking gripper orientation...'
+        rospy.loginfo('Locking gripper orientation...')
         self.cxn.flushInput()
         self.cxn.write(cmd + CR)
         self.block_on_result(cmd)

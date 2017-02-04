@@ -15,12 +15,10 @@ class ArmCommands:
 
     def __init__(self, debug = False):
         rospy.init_node('robot_arm', anonymous=True)
-
         rospy.Subscriber('/arm_cmd', String, self.arm_callback, queue_size=1)
-        self.debug_pub = rospy.Publisher('arm_debug', String, queue_size=10)
-        self.status_pub = rospy.Publisher('arm_status', Int16, queue_size=10)
 
         self.debug = debug
+        self.debug_pub = rospy.Publisher('arm_debug', String, queue_size=10)
 
         if self.debug:
             self.arm = str17_fake_arm.StArm()
@@ -33,13 +31,10 @@ class ArmCommands:
         self.arm.initial_calibration()
         self.arm.start()
 
-        print "ARM SPD IS: ", self.arm.get_speed()
-        print "ARM ACCEL IS: ", self.arm.get_accel()
+        rospy.loginfo("ARM SPD IS: %s", self.arm.get_speed())
+        rospy.loginfo("ARM ACCEL IS: %s", self.arm.get_accel())
 
-        self.arm.set_speed(10000)
         self.arm.home()
-        print "HOMING"
-
         self.debug_pub.publish("HOMING DONE")
 
     def arm_callback(self, cmdin):
@@ -49,16 +44,16 @@ class ArmCommands:
         if len(cmd.split(':: ')) > 1:
             param = cmd.split(':: ')[1]
             cmd = cmd.split(':: ')[0]
-        print cmd
+        rospy.loginfo("Received command: %s", cmd)
+
         if cmd == "de_energize":
             self.arm.de_energize()
         elif cmd == "energize":
             self.arm.energize()
         elif cmd == "where":
             location = self.arm.where()
-            print location
+            rospy.loginfo(location)
         elif cmd == "create_route":
-            print "CREATING NEW ROUTE"
             param = param.split("; ")
             route_name = param[0]
 
@@ -66,7 +61,7 @@ class ArmCommands:
             numbers = param[1].split(", ")
 
             if len(numbers)%6 != 0:
-                print "INVALID ROUTE"
+                rospy.logwarn("INVALID ROUTE, ignoring command")
                 return
 
             i = 0
@@ -79,8 +74,7 @@ class ArmCommands:
                 commands.append(route)
                 i += j
 
-            print "CREATING ROUTE: ", route_name
-            print "CMDS: ", commands
+            rospy.loginfo("CREATING ROUTE: %s", route_name)
             self.arm.create_route(route_name, commands)
 
         elif cmd == "calibrate":
@@ -91,16 +85,14 @@ class ArmCommands:
             speed = self.arm.get_speed()
         elif cmd == "set_speed":
             #SPD is also in units of 1000
-            print "setting speed to ", param
             self.arm.set_speed(float(param))
-            print "ARM SPD IS: ", self.arm.get_speed()
+            rospy.loginfo("NEW ARM SPD IS: %s", self.arm.get_speed())
         elif cmd == "set_point":
             self.arm.set_point(param)
         elif cmd == "get_accel":
             accel = self.arm.get_accel()
         elif cmd == "set_accel":
             #ACCEL is also in units of 1000
-            print "setting accel to ", param
             self.arm.set_accel(float(param))
         elif cmd == "run_route":
             res = self.arm.run_route(param)
@@ -127,7 +119,6 @@ class ArmCommands:
         elif cmd == "rotate_waist":
             self.arm.rotate_waist(param)
         elif cmd == "rotate_waist_rel":
-            print "RELATIVE WA ROTATION"
             self.arm.rotate_waist(param)
         elif cmd == "rotate_hand_rel":
             self.arm.rotate_hand_rel(param)
