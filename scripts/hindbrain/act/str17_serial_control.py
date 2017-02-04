@@ -369,7 +369,7 @@ class StArm():
     def move_to(self, x, y, z, debug=False, block=True):
         if debug:
             cmd = str(x) + ' ' + str(y) + ' ' + str(z) + ' MOVETO'
-            print('Moving to cartesian coords: (' + str(x) + ', ' +
+            rospy.loginfo(Moving to cartesian coords: (' + str(x) + ', ' +
                   str(y) + ', ' + str(z) + ')')
         self.cartesian()
         self.cxn.flushInput()
