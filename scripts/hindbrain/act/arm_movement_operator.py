@@ -7,6 +7,7 @@ import str17_fake_arm
 import numpy as np
 from std_msgs.msg import String, Int16
 import time
+from edwin_oak.srv import ArmCommand
 
 class ArmCommands:
     """
@@ -15,7 +16,7 @@ class ArmCommands:
 
     def __init__(self, debug = False):
         rospy.init_node('robot_arm', anonymous=True)
-        rospy.Subscriber('/arm_cmd', String, self.arm_callback, queue_size=1)
+        s = rospy.Service('arm_cmd', ArmCommand, self.arm_callback)
 
         self.debug = debug
         self.debug_pub = rospy.Publisher('arm_debug', String, queue_size=10)
@@ -39,13 +40,12 @@ class ArmCommands:
 
     def arm_callback(self, cmdin):
         self.arm.joint()
-        cmd = cmdin.data
-        cmd = str(cmdin).replace("data: ", "")
-        if len(cmd.split(':: ')) > 1:
-            param = cmd.split(':: ')[1]
-            cmd = cmd.split(':: ')[0]
+        cmd = cmdin.command_name
+        param = cmdin.params
         rospy.loginfo("Received command: %s", cmd)
+        return ArmCommandResponse(self.execute_command(cmd, param))
 
+    def execute_command(cmd, param):
         if cmd == "de_energize":
             self.arm.de_energize()
         elif cmd == "energize":

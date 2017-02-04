@@ -15,7 +15,6 @@ Associated commands are:
 
 import rospy
 import math
-import st
 import numpy as np
 from std_msgs.msg import String
 import time
@@ -367,10 +366,6 @@ class StArm():
         self.where()
 
     def move_to(self, x, y, z, debug=False, block=True):
-        if debug:
-            cmd = str(x) + ' ' + str(y) + ' ' + str(z) + ' MOVETO'
-            rospy.loginfo(Moving to cartesian coords: (' + str(x) + ', ' +
-                  str(y) + ', ' + str(z) + ')')
         self.cartesian()
         self.cxn.flushInput()
         self.cxn.write(str(x) + ' ' + str(y) + ' ' + str(z) + ' MOVETO' + CR)

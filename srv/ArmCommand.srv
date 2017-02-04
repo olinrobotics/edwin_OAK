@@ -1,0 +1,5 @@
+string command_name
+string params
+
+---
+bool result
